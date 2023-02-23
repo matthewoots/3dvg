@@ -238,15 +238,15 @@ namespace visibility_graph
 
                 if (dist < nearest_distance)
                 {
-                    printf("fuse [%lf %lf -- %lf %lf] [%lf %lf -- %lf %lf]\n",
-                        o1.v[idx1.first].x(), o1.v[idx1.first].y(),
-                        o1.v[idx1.second].x(), o1.v[idx1.second].y(),
-                        o2.v[idx2.first].x(), o2.v[idx2.first].y(), 
-                        o2.v[idx2.second].x(), o2.v[idx2.second].y());
-                    printf("[%ld %ld] [%ld %ld] dist %lf\n", 
-                        idx1.first, idx1.second,
-                        idx2.first, idx2.second,
-                        dist);
+                    // printf("fuse [%lf %lf -- %lf %lf] [%lf %lf -- %lf %lf]\n",
+                    //     o1.v[idx1.first].x(), o1.v[idx1.first].y(),
+                    //     o1.v[idx1.second].x(), o1.v[idx1.second].y(),
+                    //     o2.v[idx2.first].x(), o2.v[idx2.first].y(), 
+                    //     o2.v[idx2.second].x(), o2.v[idx2.second].y());
+                    // printf("[%ld %ld] [%ld %ld] dist %lf\n", 
+                    //     idx1.first, idx1.second,
+                    //     idx2.first, idx2.second,
+                    //     dist);
 
                     fuse = true;
                     nearest_distance = dist;
@@ -258,7 +258,7 @@ namespace visibility_graph
         if (!fuse)
             return false;
 
-        o3.h = 0.0;
+        o3.h = std::make_pair(0.0, 0.0);
 
         // Append the 2 vectors
         std::vector<Eigen::Vector2d> tmp_vertices, new_vertices;
@@ -419,28 +419,29 @@ namespace visibility_graph
     void visibility::set_2d_min_max_boundary(
         std::vector<obstacle> obstacles, std::pair<Eigen::Vector2d, Eigen::Vector2d> start_end, std::pair<Eigen::Vector2d, Eigen::Vector2d> &boundary)
     {
-        std::vector<Eigen::Vector2d> query_vector;
-        for (obstacle &obs : obstacles)
-        {
-            for (size_t j = 0; j < obs.v.size(); j++)
-                query_vector.push_back(obs.v[j]);
-        }
-        query_vector.push_back(start_end.first);
-        query_vector.push_back(start_end.second);
+        // std::vector<Eigen::Vector2d> query_vector;
+        // for (obstacle &obs : obstacles)
+        // {
+        //     for (size_t j = 0; j < obs.v.size(); j++)
+        //         query_vector.push_back(obs.v[j]);
+        // }
+        // query_vector.push_back(start_end.first);
+        // query_vector.push_back(start_end.second);
 
         Eigen::Vector2d max(-1000.0, -1000.0), min(1000.0, 1000.0);
-        for (Eigen::Vector2d &v : query_vector)
-        {
-            if (v.x() < min.x())
-                min.x() = v.x();
-            if (v.x() > max.x())
-                max.x() = v.x();
+        // Eigen::Vector2d max(-5.0, -10.0), min(5.0, 10.0);
+        // for (Eigen::Vector2d &v : query_vector)
+        // {
+        //     if (v.x() < min.x())
+        //         min.x() = v.x();
+        //     if (v.x() > max.x())
+        //         max.x() = v.x();
             
-            if (v.y() < min.y())
-                min.y() = v.y();
-            if (v.y() > max.y())
-                max.y() = v.y();
-        }
+        //     if (v.y() < min.y())
+        //         min.y() = v.y();
+        //     if (v.y() > max.y())
+        //         max.y() = v.y();
+        // }
 
         boundary.first = min;
         boundary.second = max;
@@ -455,7 +456,7 @@ namespace visibility_graph
     std::vector<Eigen::Vector2d> visibility::boundary_to_polygon_vertices(
         std::pair<Eigen::Vector2d, Eigen::Vector2d> min_max, std::string dir)
     {
-        static const auto BOUNDARY_EXPANSION = 50;
+        static const auto BOUNDARY_EXPANSION = 0.0;
 
         std::vector<Eigen::Vector2d> tmp, vect;
         // Establish 4 corners
@@ -533,8 +534,8 @@ namespace visibility_graph
             {
                 Eigen::Vector3d o_vert;
                 std::pair<Eigen::Vector3d, Eigen::Vector3d> vert_pair;
-                vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), 0.0);
-                vert_pair.second = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h);
+                vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h.first);
+                vert_pair.second = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h.second);
 
                 if (get_line_plane_intersection(vert_pair, normal, g_m.start_end.first, o_vert))
                 {
@@ -553,8 +554,8 @@ namespace visibility_graph
             {
                 Eigen::Vector3d o_vert;
                 std::pair<Eigen::Vector3d, Eigen::Vector3d> vert_pair;
-                vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), 0.0);
-                vert_pair.second = Eigen::Vector3d(obs.v[i+1].x(), obs.v[i+1].y(), 0.0);
+                vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h.first);
+                vert_pair.second = Eigen::Vector3d(obs.v[i+1].x(), obs.v[i+1].y(), obs.h.first);
 
                 if (get_line_plane_intersection(vert_pair, normal, g_m.start_end.first, o_vert))
                 {
@@ -568,8 +569,8 @@ namespace visibility_graph
                     vert.push_back(Eigen::Vector2d(t_vert.x(), t_vert.y()));
                 }            
 
-                vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h);
-                vert_pair.second = Eigen::Vector3d(obs.v[i+1].x(), obs.v[i+1].y(), obs.h);
+                vert_pair.first = Eigen::Vector3d(obs.v[i].x(), obs.v[i].y(), obs.h.second);
+                vert_pair.second = Eigen::Vector3d(obs.v[i+1].x(), obs.v[i+1].y(), obs.h.second);
 
                 if (get_line_plane_intersection(vert_pair, normal, g_m.start_end.first, o_vert))
                 {
@@ -593,7 +594,7 @@ namespace visibility_graph
             obs.c = get_centroid_2d(vert);
             
             // No height data since its a flat plane
-            obs.h = 0.0;
+            obs.h = std::make_pair(0.0, 0.0);
 
             // Organize vertices of holes in clockwise format
             graham_scan(vert, obs.c, "cw", obs.v);
@@ -649,13 +650,14 @@ namespace visibility_graph
         // z is yaw, and RHR indicates positive to be anticlockwise (y is pos)
         // Hence to counter yaw direction we need to make rpy.z() negative
         if (strcmp(frame.c_str(), "nwu") == 0)
-            orientated_rpy = Eigen::Vector3d(0.0, rpy.y(), -rpy.z());
+            orientated_rpy = Eigen::Vector3d(rpy.x(), rpy.y(), -rpy.z());
         // x is pitch, and RHR indicates positive to be anticlockwise (z is pos)
         // Hence to counter pitch direction we need to make rpy.x() negative
         // z is yaw, and RHR indicates positive to be anticlockwise (y is pos)
         // Hence to counter yaw direction we need to make rpy.z() negative
         else if (strcmp(frame.c_str(), "enu") == 0)
             orientated_rpy = Eigen::Vector3d(0.0, rpy.x(), -rpy.z());
+        // Not implemented for enu yet
 
         // Get rotation matrix from RPY
         // https://stackoverflow.com/a/21414609
@@ -692,170 +694,209 @@ namespace visibility_graph
     /** @brief Main loop **/
     void visibility::calculate_path()
     {
+
+        t_p_sc start_time = system_clock::now();
+
         debug_point_vertices.clear();
+        path.clear();
 
         Eigen::Vector3d direction = map.start_end.second - map.start_end.first;
         direction.normalized();
 
-        if (strcmp(frame.c_str(), "nwu") == 0)
-        {
-            double yaw = atan2(direction.y(), direction.x());
-            Eigen::Vector2d h_xy = Eigen::Vector2d(direction.x(), direction.y());
-            double length_h_xy = h_xy.norm();
-            double pitch = atan2(direction.z(), length_h_xy);
-            map.rpy = Eigen::Vector3d(0.0, pitch, yaw);
-            map.t = get_affine_transform(map.start_end.first, map.rpy, frame);
-        }
+        
+        double div_angle_vector = M_PI / (double)div_angle;
+        double plane_angle = 0.0;
 
-        else if (strcmp(frame.c_str(), "enu") == 0)
-        {
-            double yaw = atan2(direction.y(), direction.x());
-            Eigen::Vector2d h_xy = Eigen::Vector2d(direction.x(), direction.y());
-            double length_h_xy = h_xy.norm();
-            double pitch = atan2(direction.z(), length_h_xy);
-            map.rpy = Eigen::Vector3d(pitch, 0.0, yaw);
-            map.t = get_affine_transform(map.start_end.first, map.rpy, frame);
-        }
+        std::map<double, VisiLibity::Polyline> shortest_path_vector;
+        // Number of solutions given the plane division
+        // for (int i = 0; i < div_angle; i++)
+        // {
+            if (strcmp(frame.c_str(), "nwu") == 0)
+            {
+                double yaw = atan2(direction.y(), direction.x());
+                Eigen::Vector2d h_xy = Eigen::Vector2d(direction.x(), direction.y());
+                double length_h_xy = h_xy.norm();
+                double pitch = atan2(direction.z(), length_h_xy);
+                
+                map.rpy = Eigen::Vector3d(plane_angle, pitch, yaw);
 
-        std::pair<Eigen::Vector3d, Eigen::Vector3d> rot_pair;
-        rot_pair.first = map.t * map.start_end.first;
-        rot_pair.second = map.t * map.start_end.second;
-        std::pair<Eigen::Vector2d, Eigen::Vector2d> rot_pair_2d;
-        rot_pair_2d.first = Eigen::Vector2d(rot_pair.first.x(), rot_pair.first.y());
-        rot_pair_2d.second = Eigen::Vector2d(rot_pair.second.x(), rot_pair.second.y());
+                map.t = get_affine_transform(map.start_end.first, map.rpy, frame);
+            }
 
-        /** @brief Check transform **/
-        // std::cout << "original = " << (map.t.inverse() * rot_pair.first).transpose() << " to " << 
-        //      (map.t.inverse() * rot_pair.second).transpose() << std::endl;
-        // std::cout << "transformed = " << rot_pair.first.transpose() << " to " << 
-        //     rot_pair.second.transpose() << std::endl;
+            else if (strcmp(frame.c_str(), "enu") == 0)
+            {
+                double yaw = atan2(direction.y(), direction.x());
+                Eigen::Vector2d h_xy = Eigen::Vector2d(direction.x(), direction.y());
+                double length_h_xy = h_xy.norm();
+                double pitch = atan2(direction.z(), length_h_xy);
+                map.rpy = Eigen::Vector3d(pitch, 0.0, yaw);
+                map.t = get_affine_transform(map.start_end.first, map.rpy, frame);
+            }
 
-        // Get the plane normal
-        Eigen::Vector3d normal = 
-            get_rotation(map.rpy, frame).inverse() * Eigen::Vector3d(0.0, 0.0, 1.0);
+            std::pair<Eigen::Vector3d, Eigen::Vector3d> rot_pair;
+            rot_pair.first = map.t * map.start_end.first;
+            rot_pair.second = map.t * map.start_end.second;
+            std::pair<Eigen::Vector2d, Eigen::Vector2d> rot_pair_2d;
+            rot_pair_2d.first = Eigen::Vector2d(rot_pair.first.x(), rot_pair.first.y());
+            rot_pair_2d.second = Eigen::Vector2d(rot_pair.second.x(), rot_pair.second.y());
 
-        rot_polygons.clear();
-        get_polygons_on_plane(map, normal, rot_polygons, debug_point_vertices);
+            double setup_time = 
+                duration<double>(system_clock::now() - start_time).count();
 
-        check_and_fuse_obstacles();
+            /** @brief Check transform **/
+            // std::cout << "original = " << (map.t.inverse() * rot_pair.first).transpose() << " to " << 
+            //      (map.t.inverse() * rot_pair.second).transpose() << std::endl;
+            // std::cout << "transformed = " << rot_pair.first.transpose() << " to " << 
+            //     rot_pair.second.transpose() << std::endl;
 
-        for (size_t i = 0; i < rot_polygons.size(); i++)
-        {
-            get_expanded_obs(rot_polygons[i], map.inflation);
+            // Get the plane normal
+            Eigen::Vector3d normal = 
+                get_rotation(map.rpy, frame).inverse() * Eigen::Vector3d(0.0, 0.0, 1.0);
+
+            rot_polygons.clear();
+            get_polygons_on_plane(map, normal, rot_polygons, debug_point_vertices);
+
+            // Join the existing obstacles
+            check_and_fuse_obstacles();
+
+            for (size_t i = 0; i < rot_polygons.size(); i++)
+            {
+                // Expand the obstacles first
+                get_expanded_obs(rot_polygons[i], map.inflation);
+
+                /** @brief For debug purpose **/
+                // std::cout << i << " polygon_vertices " << (int)rot_polygons[i].v.size() << std::endl;
+            }
+
+            // Join the expanded obstacles
+            check_and_fuse_obstacles();
+
+            double fuse_time = 
+                duration<double>(system_clock::now() - start_time).count() -
+                setup_time;
 
             /** @brief For debug purpose **/
-            std::cout << i << " polygon_vertices " << (int)rot_polygons[i].v.size() << std::endl;
-        }
+            // for (Eigen::Vector3d &p : debug_point_vertices)
+            //     std::cout << p.transpose() << std::endl;
+            // std::cout << std::endl;
 
-        check_and_fuse_obstacles();
+            //std::vector<VisiLibity::Polygon> vector_polygon;
 
-        /** @brief For debug purpose **/
-        // for (Eigen::Vector3d &p : debug_point_vertices)
-        //     std::cout << p.transpose() << std::endl;
-        // std::cout << std::endl;
+            // Intersect with the global boundary
+            // switch (constrain_type)
+            // {
+            //     // height constrains
+            //     case 1:
+            //         break;
 
-        //std::vector<VisiLibity::Polygon> vector_polygon;
+            //     // all (height and plane) constrains
+            //     case 2:
+            //         break;
 
-        // Create the polygon for boundary
-        std::pair<Eigen::Vector2d, Eigen::Vector2d> min_max;
-        set_2d_min_max_boundary(rot_polygons, rot_pair_2d, min_max);
-        std::vector<Eigen::Vector2d> boundary =
-            boundary_to_polygon_vertices(min_max, "ccw");
+            //     // Without any constrains
+            //     case 0: default:
+            //         break;
+            // }
 
-        VisiLibity::Polygon boundary_polygon;
-        std::vector<VisiLibity::Point> boundary_vertices;
-        for (Eigen::Vector2d &p : boundary)
-        {
-            VisiLibity::Point vis_vert(p.x(), p.y());
-            boundary_vertices.push_back(vis_vert);
-        }
-        boundary_polygon.set_vertices(boundary_vertices);
+            // Create the polygon for boundary
+            std::pair<Eigen::Vector2d, Eigen::Vector2d> min_max;
+            set_2d_min_max_boundary(rot_polygons, rot_pair_2d, min_max);
+            std::vector<Eigen::Vector2d> boundary =
+                boundary_to_polygon_vertices(min_max, "ccw");
 
-        // Add obstacles to environment
-        static const auto VISILIBITY_EPSILON = map.inflation;
-
-        VisiLibity::Environment my_environment;
-        my_environment.set_outer_boundary(boundary_polygon);
-
-        if (!rot_polygons.empty())
-        {
-            // size_t i = 0;
-            // Create the polygons for holes
-            for (obstacle &poly : rot_polygons)
+            VisiLibity::Polygon boundary_polygon;
+            std::vector<VisiLibity::Point> boundary_vertices;
+            for (Eigen::Vector2d &p : boundary)
             {
-                VisiLibity::Polygon polygon;
-
-                size_t poly_size;
-                // Epsilon will trigger if the points are too close
-                // run proximity check for VISILIBITY_EPSILON
-                check_simple_obstacle_vertices(
-                    poly, VISILIBITY_EPSILON, poly_size);
-                
-                if (!poly.v.empty() && poly_size >= 3)
-                {
-                    // std::cout << "create " << i << " polygon_vertices " << (int)poly.v.size() << std::endl;
-                    /** @brief For debug purpose **/
-                    // printf("poly_vert_size %d\n",(int)poly.v.size());
-
-                    for (size_t i = 0; i < poly.v.size(); i++)
-                        polygon.push_back(
-                            VisiLibity::Point(poly.v[i].x(), poly.v[i].y()));
-
-                    polygon.eliminate_redundant_vertices(VISILIBITY_EPSILON);
-                    polygon.enforce_standard_form();
-
-                    /** @brief For debug purpose **/
-                    // printf("polygon_size %d, standard %s, simple %s\n", 
-                    //     polygon.n(), polygon.is_in_standard_form() ? "y" : "n",
-                    //     polygon.is_simple() ? "y" : "n");
-                    
-                    // my_environment.add_hole(polygon);
-                    // vector_polygon.push_back(polygon);
-
-                    if (polygon.is_simple()) //Sometimes eliminate_redundant_vertices reduces vertices to invalid number
-                        my_environment.add_hole(polygon);
-                }
-                // i++;
+                VisiLibity::Point vis_vert(p.x(), p.y());
+                boundary_vertices.push_back(vis_vert);
             }
-        }
-        else
-            printf("empty environment\n");
+            boundary_polygon.set_vertices(boundary_vertices);
 
-        // std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> vect_vert;
+            // Add obstacles to environment
+            static const auto VISILIBITY_EPSILON = 0.1;
 
-        // vect_vert.clear();
-        // for (obstacle &obs : rot_polygons)
+            VisiLibity::Environment my_environment;
+            my_environment.set_outer_boundary(boundary_polygon);
+
+            if (!rot_polygons.empty())
+            {
+                // size_t i = 0;
+                // Create the polygons for holes
+                for (obstacle &poly : rot_polygons)
+                {
+                    VisiLibity::Polygon polygon;
+
+                    size_t poly_size;
+                    // Epsilon will trigger if the points are too close
+                    // run proximity check for VISILIBITY_EPSILON
+                    check_simple_obstacle_vertices(
+                        poly, VISILIBITY_EPSILON, poly_size);
+                    
+                    if (!poly.v.empty() && poly_size >= 3)
+                    {
+                        // std::cout << "create " << i << " polygon_vertices " << (int)poly.v.size() << std::endl;
+                        /** @brief For debug purpose **/
+                        // printf("poly_vert_size %d\n",(int)poly.v.size());
+
+                        for (size_t i = 0; i < poly.v.size(); i++)
+                            polygon.push_back(
+                                VisiLibity::Point(poly.v[i].x(), poly.v[i].y()));
+
+                        polygon.eliminate_redundant_vertices(VISILIBITY_EPSILON);
+                        polygon.enforce_standard_form();
+
+                        /** @brief For debug purpose **/
+                        // printf("polygon_size %d, standard %s, simple %s\n", 
+                        //     polygon.n(), polygon.is_in_standard_form() ? "y" : "n",
+                        //     polygon.is_simple() ? "y" : "n");
+                        
+                        // my_environment.add_hole(polygon);
+                        // vector_polygon.push_back(polygon);
+
+                        if (polygon.is_simple()) //Sometimes eliminate_redundant_vertices reduces vertices to invalid number
+                            my_environment.add_hole(polygon);
+                    }
+                }
+            }
+            else
+                printf("empty environment\n");
+
+            assert(my_environment.is_valid(VISILIBITY_EPSILON));
+
+            t_p_sc v_g = system_clock::now();
+            VisiLibity::Polyline shortest_path_poly;
+            VisiLibity::Point start_vis(rot_pair_2d.first.x(), rot_pair_2d.first.y());
+            VisiLibity::Point end_vis(rot_pair_2d.second.x(), rot_pair_2d.second.y());
+            shortest_path_poly = my_environment.shortest_path(start_vis, end_vis, VISILIBITY_EPSILON);
+            double v_g_time = 
+                duration<double>(system_clock::now() - v_g).count();
+
+            shortest_path_vector.insert({
+                shortest_path_poly.length(), shortest_path_poly});
+
+            plane_angle += div_angle_vector;
+
+            for (size_t i = 0; i < shortest_path_poly.size(); i++)
+            {
+                VisiLibity::Point point = shortest_path_poly[(unsigned int)i];
+                path.push_back(map.t.inverse() * Eigen::Vector3d(
+                    point.x(), point.y(), 0.0));
+            }
+        // }
+
+        // while (1)
         // {
-        //     int obs_pair_size = obs.v.size();
-        //     for (int i = 0; i < obs_pair_size; i++)
+        //     for (size_t i = 0; i < shortest_path_poly.size(); i++)
         //     {
-        //         std::pair<Eigen::Vector3d, Eigen::Vector3d> vert_pair;
-        //         vert_pair.first = map.t.inverse() * 
-        //             Eigen::Vector3d(obs.v[i % obs_pair_size].x(), 
-        //             obs.v[i % obs_pair_size].y(), 0.0);
-        //         vert_pair.second = map.t.inverse() *
-        //             Eigen::Vector3d(obs.v[(i+1) % obs_pair_size].x(), 
-        //             obs.v[(i+1) % obs_pair_size].y(), 0.0);
-        //         vect_vert.push_back(vert_pair);
+        //         VisiLibity::Point point = shortest_path_poly[(unsigned int)i];
+        //         path.push_back(map.t.inverse() * Eigen::Vector3d(
+        //             point.x(), point.y(), 0.0));
         //     }
         // }
 
-        assert(my_environment.is_valid(VISILIBITY_EPSILON));
-
-        VisiLibity::Polyline shortest_path_poly;
-        VisiLibity::Point start_vis(rot_pair_2d.first.x(), rot_pair_2d.first.y());
-        VisiLibity::Point end_vis(rot_pair_2d.second.x(), rot_pair_2d.second.y());
-        shortest_path_poly = my_environment.shortest_path(start_vis, end_vis, VISILIBITY_EPSILON);
-
-        path.clear();
-
-        for (size_t i = 0; i < shortest_path_poly.size(); i++)
-        {
-            VisiLibity::Point point = shortest_path_poly[(unsigned int)i];
-            path.push_back(
-                map.t.inverse() * Eigen::Vector3d(
-                point.x(), point.y(), 0.0));
-        }
+        printf("setup %.3lfms, fuse %.3lfms, calc %.3lf\n", 
+            setup_time * 1000.0, fuse_time * 1000.0, v_g_time * 1000.0);
 
         return;
     }
@@ -865,7 +906,7 @@ namespace visibility_graph
         size_t count = 0, check_size = 1;
         auto total_tries = sum_of_range(1, rot_polygons.size()-1);
         int tries = 0;
-        while (count != check_size && tries < pow(total_tries,1.5))
+        while (count != check_size && tries < pow(total_tries,1.25))
         {
             size_t poly_size = rot_polygons.size();
             check_size = sum_of_range(1, poly_size-1);
@@ -915,6 +956,9 @@ namespace visibility_graph
             /** @brief For debug purpose **/
             // std::cout << count << "/" << check_size << "/" << poly_size << std::endl;
         }
+
+        // if (tries >= pow(total_tries,1.25))
+        //     std::cout << "[error] early break!" << std::endl;
     }
 
     void visibility::check_simple_obstacle_vertices(
@@ -944,5 +988,11 @@ namespace visibility_graph
     std::vector<Eigen::Vector3d> visibility::get_path()
     {
         return path;
+    }
+
+    /** @brief Get updated map **/
+    global_map visibility::get_map()
+    {
+        return map;
     }
 }

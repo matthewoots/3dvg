@@ -25,9 +25,15 @@
 #include <string>
 // #include <iostream>
 #include <math.h>
+#include <map>
+#include <chrono>
 
 using namespace Eigen;
 using namespace VisiLibity;
+
+using namespace std::chrono;
+
+typedef time_point<std::chrono::system_clock> t_p_sc; // giving a typename
 
 namespace visibility_graph
 {
@@ -40,7 +46,7 @@ namespace visibility_graph
     struct obstacle
     {
         std::vector<Eigen::Vector2d> v; // Base vertices
-        double h; // Height that is it extruded to
+        std::pair<double, double> h; // Height that is it extruded to
         Eigen::Vector2d c; // Centroid
     };
 
@@ -93,8 +99,32 @@ namespace visibility_graph
     {
         public:
 
-            visibility(global_map _map, std::string _frame) : 
-                map(_map), frame(_frame){}
+            visibility(global_map _map, std::string _frame, int _div_angle) : 
+                map(_map), frame(_frame), div_angle(_div_angle)
+            {
+                // no plane and height constrain
+                constrain_type = 0;
+            }
+
+            visibility(global_map _map, std::string _frame,
+                std::pair<double, double> _height_constrain, int _div_angle) : 
+                map(_map), frame(_frame), height_constrain(_height_constrain), 
+                div_angle(_div_angle)
+            {
+                // no plane constrain
+                constrain_type = 1;
+            }
+
+            visibility(global_map _map, std::string _frame,
+                std::pair<double, double> _height_constrain,
+                std::pair<Eigen::Vector2d, Eigen::Vector2d> _plane_constrain, 
+                int _div_angle) : 
+                map(_map), frame(_frame), height_constrain(_height_constrain),
+                plane_constrain(_plane_constrain), div_angle(_div_angle)
+            {
+                // no plane and height constrain
+                constrain_type = 2;
+            }
 
             ~visibility(){}
 
@@ -107,9 +137,14 @@ namespace visibility_graph
             /** @brief Get the calculated path **/
             std::vector<Eigen::Vector3d> get_path();
 
+            /** @brief Get updated map **/
+            global_map get_map();
+
         private:
 
             global_map map;
+
+            int div_angle;
 
             std::vector<Eigen::Vector3d> path;
             std::vector<Eigen::Vector3d> debug_point_vertices;
@@ -117,6 +152,11 @@ namespace visibility_graph
             std::vector<obstacle> rot_polygons;
             
             std::string frame;
+
+            uint8_t constrain_type;
+
+            std::pair<double, double> height_constrain;
+            std::pair<Eigen::Vector2d, Eigen::Vector2d> plane_constrain; 
 
             /** 
              * @brief Sum up from a range of unsigned int values
