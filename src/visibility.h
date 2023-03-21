@@ -23,6 +23,7 @@
 #include <Eigen/Dense>
 
 #include <string>
+#include <cfloat>
 // #include <iostream>
 #include <math.h>
 #include <map>
@@ -95,6 +96,59 @@ namespace visibility_graph
         std::vector<Eigen::Vector2d> points_in, Eigen::Vector2d centroid,
         std::string dir, std::vector<Eigen::Vector2d> &points_out);
 
+    /** 
+     * @brief gift_wrapping algorithm
+     * @param points_in points that are passed into the algorithm
+     * @param (Return) Vector of points that are at the edge (convex hull)
+    **/
+    std::vector<Eigen::Vector2d> gift_wrapping(
+        std::vector<Eigen::Vector2d> points_in);
+
+    // https://stackoverflow.com/a/43896965
+    // This uses the ray-casting algorithm to decide whether the point is inside
+    // the given polygon. See https://en.wikipedia.org/wiki/Point_in_polygon#Ray_casting_algorithm
+    bool point_in_polygon(obstacle &poly, Eigen::Vector2d point);
+
+    // https://stackoverflow.com/a/12132746
+    void get_line(Eigen::Vector2d l1, Eigen::Vector2d l2, double &a, double &b, double &c);
+    
+    void get_point_to_line(
+        Eigen::Vector2d p, Eigen::Vector2d l1, Eigen::Vector2d l2,
+        double &distance, Eigen::Vector2d &closest_point);
+
+    /** 
+     * @brief get_line_plane_intersection
+     * @param s_e Start and end pair
+     * @param normal Normal of the plane
+     * @param pop Point on plane
+     * @param p (Return) Point of intersection
+    **/
+    bool get_line_plane_intersection(
+        std::pair<Eigen::Vector3d, Eigen::Vector3d> s_e, 
+        Eigen::Vector3d normal, Eigen::Vector3d pop, Eigen::Vector3d &p);
+
+    /** 
+     * @brief get_polygons_on_plane
+     * @param g_m Pass in the global map
+     * @param normal Normal of the plane
+     * @param polygons (Return) Return the vector of flattened polygons
+     * @param v (Return) Return the vertices in 3d (not transformed)
+    **/
+    void get_polygons_on_plane(
+        global_map g_m, Eigen::Vector3d normal, 
+        std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v);
+
+    /**
+     * @brief get_affine_transform
+     * @param pos Translational position
+     * @param rpy Euler angles
+     * @param frame Coordinate frame used
+     * @param (Return) Affine3d matrix
+    **/
+    Eigen::Affine3d get_affine_transform(
+        Eigen::Vector3d pos, Eigen::Vector3d rpy, 
+        std::string frame);
+
     class visibility
     {
         public:
@@ -104,6 +158,8 @@ namespace visibility_graph
             {
                 // no plane and height constrain
                 constrain_type = 0;
+                // std::cout << &frame << " " << &map << std::endl;
+                // std::cout << &_frame << std::endl;
             }
 
             visibility(global_map _map, std::string _frame,
@@ -129,7 +185,7 @@ namespace visibility_graph
             ~visibility(){}
 
             /** @brief Main loop **/
-            void calculate_path();
+            void calculate_path(bool is_expanded);
 
             /** @brief Get the rotated polygon (obstacles) **/
             std::vector<obstacle> get_rotated_poly();
@@ -164,14 +220,6 @@ namespace visibility_graph
              * @param e end of the range
             **/
             size_t sum_of_range(size_t s, size_t e);
-
-            /** 
-             * @brief gift_wrapping algorithm
-             * @param points_in points that are passed into the algorithm
-             * @param (Return) Vector of points that are at the edge (convex hull)
-            **/
-            std::vector<Eigen::Vector2d> gift_wrapping(
-                std::vector<Eigen::Vector2d> points_in);
 
             /** 
              * @brief find_nearest_distance_2d_polygons_and_fuse
@@ -227,28 +275,6 @@ namespace visibility_graph
             **/
             std::vector<Eigen::Vector2d> boundary_to_polygon_vertices(
                 std::pair<Eigen::Vector2d, Eigen::Vector2d> min_max, std::string dir);
-            
-            /** 
-             * @brief get_line_plane_intersection
-             * @param s_e Start and end pair
-             * @param normal Normal of the plane
-             * @param pop Point on plane
-             * @param p (Return) Point of intersection
-            **/
-            bool get_line_plane_intersection(
-                std::pair<Eigen::Vector3d, Eigen::Vector3d> s_e, 
-                Eigen::Vector3d normal, Eigen::Vector3d pop, Eigen::Vector3d &p);
-
-            /** 
-             * @brief get_polygons_on_plane
-             * @param g_m Pass in the global map
-             * @param normal Normal of the plane
-             * @param polygons (Return) Return the vector of flattened polygons
-             * @param v (Return) Return the vertices in 3d (not transformed)
-            **/
-            void get_polygons_on_plane(
-                global_map g_m, Eigen::Vector3d normal, 
-                std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v);
         
             /** 
              * @brief get_expansion_of_obs
@@ -257,17 +283,6 @@ namespace visibility_graph
             **/
             void get_expanded_obs(
                 obstacle &obs, double inflation);
-
-            /**
-             * @brief get_affine_transform
-             * @param pos Translational position
-             * @param rpy Euler angles
-             * @param frame Coordinate frame used
-             * @param (Return) Affine3d matrix
-            **/
-            Eigen::Affine3d get_affine_transform(
-                Eigen::Vector3d pos, Eigen::Vector3d rpy, 
-                std::string frame);
 
             void check_and_fuse_obstacles();
 

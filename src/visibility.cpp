@@ -35,7 +35,7 @@ namespace visibility_graph
      * @param points_in points that are passed into the algorithm
      * @param (Return) Vector of points that are at the edge (convex hull)
     **/
-    std::vector<Eigen::Vector2d> visibility::gift_wrapping(
+    std::vector<Eigen::Vector2d> gift_wrapping(
         std::vector<Eigen::Vector2d> points_in)
     {
         static const auto INVALID_VALUE = std::numeric_limits<size_t>::max();
@@ -131,6 +131,90 @@ namespace visibility_graph
         // for (int i = 0; i < point_size; i++)
         //     printf("%lf %ld\n", point_angle_pair[i].first,
         //         point_angle_pair[i].second); 
+    }
+
+        // https://stackoverflow.com/a/43896965
+    // This uses the ray-casting algorithm to decide whether the point is inside
+    // the given polygon. See https://en.wikipedia.org/wiki/Point_in_polygon#Ray_casting_algorithm
+    bool point_in_polygon(obstacle &poly, Eigen::Vector2d point)
+    {
+        // If we never cross any lines we're inside.
+        bool inside = false;
+
+        // Loop through all the edges.
+        for (size_t i = 0; i < poly.v.size(); ++i)
+        {
+            // i is the index of the first vertex, j is the next one.
+            // The original code uses a too-clever trick for this.
+            int j = (i + 1) % (poly.v.size()-1);
+
+            // The vertices of the edge we are checking.
+            double xp0 = poly.v[i].x();
+            double yp0 = poly.v[i].y();
+            double xp1 = poly.v[j].x();
+            double yp1 = poly.v[j].y();
+
+            // Check whether the edge intersects a line from (-inf,y) to (x,y).
+
+            // First check if the line crosses the horizontal line at y in either direction.
+            if ((yp0 <= point.y()) && (yp1 > point.y()) || (yp1 <= point.y()) && (yp0 > point.y()))
+            {
+                // If so, get the point where it crosses that line. This is a simple solution
+                // to a linear equation. Note that we can't get a division by zero here -
+                // if yp1 == yp0 then the above if will be false.
+                double cross = (xp1 - xp0) * (point.y() - yp0) / (yp1 - yp0) + xp0;
+
+                // Finally check if it crosses to the left of our test point. You could equally
+                // do right and it should give the same result.
+                if (cross < point.x())
+                    inside = !inside;
+            }
+        }
+
+        return inside;
+    }
+
+    // https://stackoverflow.com/a/12132746
+    void get_line(Eigen::Vector2d l1, Eigen::Vector2d l2, double &a, double &b, double &c)
+    {
+        // (x- p1X) / (p2X - p1X) = (y - p1Y) / (p2Y - p1Y) 
+        a = l1.y() - l2.y(); // Note: this was incorrectly "y2 - y1" in the original answer
+        b = l2.x() - l1.x();
+        c = l1.x() * l2.y() - l2.x() * l1.y();
+    }
+    
+    void get_point_to_line(
+        Eigen::Vector2d p, Eigen::Vector2d l1, Eigen::Vector2d l2,
+        double &distance, Eigen::Vector2d &closest_point)
+    {
+        double a, b, c;
+        get_line(l1, l2, a, b, c);
+        // https://www.geeksforgeeks.org/find-foot-of-perpendicular-from-a-point-in-2-d-plane-to-a-line/?ref=rp
+        double temp = -1 * (a * p.x() + b * p.y() + c) / (a * a + b * b);
+        Eigen::Vector2d pp = Eigen::Vector2d(temp * a + p.x(), temp * b + p.y());
+
+        Eigen::Vector2d dir1 = (pp - l1);
+        Eigen::Vector2d dir2 = (pp - l2);
+
+        // same direction, we should clamp at one of the end points
+        if ((dir1.normalized()-dir2.normalized()).norm() < 0.0000001)
+        {
+            if (dir1.norm() < dir2.norm())
+            {
+                distance = dir1.norm();
+                closest_point = l1;
+            }
+            else
+            {
+                distance = dir2.norm();
+                closest_point = l2;
+            }
+        }
+        else
+        {
+            distance = (pp - p).norm();
+            closest_point = pp;
+        }
     }
 
     /** 
@@ -479,7 +563,7 @@ namespace visibility_graph
      * @param pop Point on plane
      * @param p (Return) Point of intersection
     **/
-    bool visibility::get_line_plane_intersection(
+    bool get_line_plane_intersection(
         std::pair<Eigen::Vector3d, Eigen::Vector3d> s_e, 
         Eigen::Vector3d normal, Eigen::Vector3d pop, Eigen::Vector3d &p)
     {
@@ -517,7 +601,7 @@ namespace visibility_graph
      * @param polygons (Return) Return the vector of flattened polygons
      * @param v (Return) Return the vertices in 3d (not transformed)
     **/
-    void visibility::get_polygons_on_plane(
+    void get_polygons_on_plane(
         global_map g_m, Eigen::Vector3d normal, 
         std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v)
     {        
@@ -542,7 +626,7 @@ namespace visibility_graph
                     // Transform original vertex into 2d, o_vert to t_vert
                     v.push_back(o_vert);
 
-                    Eigen::Vector3d t_vert = map.t * o_vert;
+                    Eigen::Vector3d t_vert = g_m.t * o_vert;
                     /** @brief For debug purpose **/
                     // std::cout << t_vert.transpose() << std::endl;
                     
@@ -562,7 +646,7 @@ namespace visibility_graph
                     // Transform original vertex into 2d, o_vert to t_vert
                     v.push_back(o_vert);
 
-                    Eigen::Vector3d t_vert = map.t * o_vert;
+                    Eigen::Vector3d t_vert = g_m.t * o_vert;
                     /** @brief For debug purpose **/
                     // std::cout << t_vert.transpose() << std::endl;
                     
@@ -577,7 +661,7 @@ namespace visibility_graph
                     // Transform original vertex into 2d, o_vert to t_vert
                     v.push_back(o_vert);
 
-                    Eigen::Vector3d t_vert = map.t * o_vert;
+                    Eigen::Vector3d t_vert = g_m.t * o_vert;
                     /** @brief For debug purpose **/
                     // std::cout << t_vert.transpose() << std::endl;
                     
@@ -677,7 +761,7 @@ namespace visibility_graph
      * @param frame Coordinate frame used
      * @param (Return) Affine3d matrix
     **/
-    Eigen::Affine3d visibility::get_affine_transform(
+    Eigen::Affine3d get_affine_transform(
         Eigen::Vector3d pos, Eigen::Vector3d rpy, 
         std::string frame)
     {
@@ -692,9 +776,8 @@ namespace visibility_graph
     }
 
     /** @brief Main loop **/
-    void visibility::calculate_path()
+    void visibility::calculate_path(bool is_expanded)
     {
-
         t_p_sc start_time = system_clock::now();
 
         debug_point_vertices.clear();
@@ -706,6 +789,8 @@ namespace visibility_graph
         
         double div_angle_vector = M_PI / (double)div_angle;
         double plane_angle = 0.0;
+
+        // std::cout << &frame << " " << &map << std::endl;
 
         std::map<double, VisiLibity::Polyline> shortest_path_vector;
         // Number of solutions given the plane division
@@ -756,24 +841,29 @@ namespace visibility_graph
             rot_polygons.clear();
             get_polygons_on_plane(map, normal, rot_polygons, debug_point_vertices);
 
-            // Join the existing obstacles
-            check_and_fuse_obstacles();
+            double fuse_time = 0.0;
 
-            for (size_t i = 0; i < rot_polygons.size(); i++)
+            if (!is_expanded)
             {
-                // Expand the obstacles first
-                get_expanded_obs(rot_polygons[i], map.inflation);
+                // Join the existing obstacles
+                check_and_fuse_obstacles();
 
-                /** @brief For debug purpose **/
-                // std::cout << i << " polygon_vertices " << (int)rot_polygons[i].v.size() << std::endl;
+                for (size_t i = 0; i < rot_polygons.size(); i++)
+                {
+                    // Expand the obstacles first
+                    get_expanded_obs(rot_polygons[i], map.inflation);
+
+                    /** @brief For debug purpose **/
+                    // std::cout << i << " polygon_vertices " << (int)rot_polygons[i].v.size() << std::endl;
+                }
+
+                // Join the expanded obstacles
+                check_and_fuse_obstacles();
+
+                fuse_time = 
+                    duration<double>(system_clock::now() - start_time).count() -
+                    setup_time;
             }
-
-            // Join the expanded obstacles
-            check_and_fuse_obstacles();
-
-            double fuse_time = 
-                duration<double>(system_clock::now() - start_time).count() -
-                setup_time;
 
             /** @brief For debug purpose **/
             // for (Eigen::Vector3d &p : debug_point_vertices)
@@ -857,6 +947,54 @@ namespace visibility_graph
                         if (polygon.is_simple()) //Sometimes eliminate_redundant_vertices reduces vertices to invalid number
                             my_environment.add_hole(polygon);
                     }
+
+                    // // check whether start point is inside this polygon 
+                    // if (visibility_graph::point_in_polygon(poly, rot_pair_2d.first))
+                    // {
+                    //     double distance = FLT_MAX;
+                    //     Eigen::Vector2d closest_point;
+                    //     for (size_t i = 0; i < poly.v.size(); i++)
+                    //     {
+                    //         Eigen::Vector2d cp;
+                    //         double d;
+                    //         size_t j = (i + 1) % (poly.v.size());
+                    //         get_point_to_line(rot_pair_2d.first, 
+                    //             poly.v[i], poly.v[j], d, cp);
+                    //         if (d < distance)
+                    //         {
+                    //             distance = d;
+                    //             closest_point = cp;
+                    //         }
+                    //     }
+                    //     closest_point += (closest_point - poly.c).normalized() * 0.1;
+                    //     path.emplace_back(
+                    //         map.t.inverse() * Eigen::Vector3d(
+                    //         rot_pair_2d.first.x(), rot_pair_2d.first.y(), 0.0));
+                    //     rot_pair_2d.first.x() = closest_point.x();
+                    //     rot_pair_2d.first.y() = closest_point.y();
+                    // }
+                    // // check whether end point is inside this polygon 
+                    // if (visibility_graph::point_in_polygon(poly, rot_pair_2d.second))
+                    // {
+                    //     double distance = FLT_MAX;
+                    //     Eigen::Vector2d closest_point;
+                    //     for (size_t i = 0; i < poly.v.size(); i++)
+                    //     {
+                    //         Eigen::Vector2d cp;
+                    //         double d;
+                    //         size_t j = (i + 1) % (poly.v.size());
+                    //         get_point_to_line(rot_pair_2d.second, 
+                    //             poly.v[i], poly.v[j], d, cp);
+                    //         if (d < distance)
+                    //         {
+                    //             distance = d;
+                    //             closest_point = cp;
+                    //         }
+                    //     }
+                    //     closest_point += (closest_point - poly.c).normalized() * 0.1;
+                    //     rot_pair_2d.second.x() = closest_point.x();
+                    //     rot_pair_2d.second.y() = closest_point.y();
+                    // }
                 }
             }
             else
