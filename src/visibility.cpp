@@ -146,7 +146,7 @@ namespace visibility_graph
         {
             // i is the index of the first vertex, j is the next one.
             // The original code uses a too-clever trick for this.
-            int j = (i + 1) % (poly.v.size()-1);
+            int j = (i + 1) % (poly.v.size());
 
             // The vertices of the edge we are checking.
             double xp0 = poly.v[i].x();
@@ -603,7 +603,8 @@ namespace visibility_graph
     **/
     void get_polygons_on_plane(
         global_map g_m, Eigen::Vector3d normal, 
-        std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v)
+        std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v,
+        bool sorted)
     {        
         v.clear();
         
@@ -628,7 +629,7 @@ namespace visibility_graph
 
                     Eigen::Vector3d t_vert = g_m.t * o_vert;
                     /** @brief For debug purpose **/
-                    // std::cout << t_vert.transpose() << std::endl;
+                    // std::cout << i << " = " <<  t_vert.transpose() << std::endl;
                     
                     vert.push_back(Eigen::Vector2d(t_vert.x(), t_vert.y()));
                 }
@@ -681,7 +682,10 @@ namespace visibility_graph
             obs.h = std::make_pair(0.0, 0.0);
 
             // Organize vertices of holes in clockwise format
-            graham_scan(vert, obs.c, "cw", obs.v);
+            if (!sorted)
+                graham_scan(vert, obs.c, "cw", obs.v);
+            else 
+                obs.v = vert;
 
             polygons.push_back(obs);
         }
@@ -776,7 +780,7 @@ namespace visibility_graph
     }
 
     /** @brief Main loop **/
-    void visibility::calculate_path(bool is_expanded)
+    void visibility::calculate_path(bool is_expanded_and_sorted)
     {
         t_p_sc start_time = system_clock::now();
 
@@ -829,21 +833,23 @@ namespace visibility_graph
                 duration<double>(system_clock::now() - start_time).count();
 
             /** @brief Check transform **/
-            // std::cout << "original = " << (map.t.inverse() * rot_pair.first).transpose() << " to " << 
-            //      (map.t.inverse() * rot_pair.second).transpose() << std::endl;
-            // std::cout << "transformed = " << rot_pair.first.transpose() << " to " << 
-            //     rot_pair.second.transpose() << std::endl;
+            std::cout << "original = " << (map.t.inverse() * rot_pair.first).transpose() << " to " << 
+                 (map.t.inverse() * rot_pair.second).transpose() << std::endl;
+            std::cout << "transformed = " << rot_pair.first.transpose() << " to " << 
+                rot_pair.second.transpose() << std::endl;
 
             // Get the plane normal
             Eigen::Vector3d normal = 
                 get_rotation(map.rpy, frame).inverse() * Eigen::Vector3d(0.0, 0.0, 1.0);
 
             rot_polygons.clear();
-            get_polygons_on_plane(map, normal, rot_polygons, debug_point_vertices);
+            get_polygons_on_plane(
+                map, normal, rot_polygons, debug_point_vertices, 
+                is_expanded_and_sorted);
 
             double fuse_time = 0.0;
 
-            if (!is_expanded)
+            if (!is_expanded_and_sorted)
             {
                 // Join the existing obstacles
                 check_and_fuse_obstacles();
@@ -866,9 +872,9 @@ namespace visibility_graph
             }
 
             /** @brief For debug purpose **/
-            // for (Eigen::Vector3d &p : debug_point_vertices)
-            //     std::cout << p.transpose() << std::endl;
-            // std::cout << std::endl;
+            for (Eigen::Vector3d &p : debug_point_vertices)
+                std::cout << p.transpose() << std::endl;
+            std::cout << std::endl;
 
             //std::vector<VisiLibity::Polygon> vector_polygon;
 
@@ -889,10 +895,12 @@ namespace visibility_graph
             // }
 
             // Create the polygon for boundary
+            printf("creating boundary_to_polygon_vertices\n");
             std::pair<Eigen::Vector2d, Eigen::Vector2d> min_max;
             set_2d_min_max_boundary(rot_polygons, rot_pair_2d, min_max);
             std::vector<Eigen::Vector2d> boundary =
                 boundary_to_polygon_vertices(min_max, "ccw");
+            printf("boundary_to_polygon_vertices\n");
 
             VisiLibity::Polygon boundary_polygon;
             std::vector<VisiLibity::Point> boundary_vertices;
@@ -902,12 +910,14 @@ namespace visibility_graph
                 boundary_vertices.push_back(vis_vert);
             }
             boundary_polygon.set_vertices(boundary_vertices);
+            printf("set boundary vertices\n");
 
             // Add obstacles to environment
-            static const auto VISILIBITY_EPSILON = 0.1;
+            static const auto VISILIBITY_EPSILON = 0.01;
 
             VisiLibity::Environment my_environment;
             my_environment.set_outer_boundary(boundary_polygon);
+            printf("set outer boundary\n");
 
             if (!rot_polygons.empty())
             {
@@ -923,7 +933,8 @@ namespace visibility_graph
                     check_simple_obstacle_vertices(
                         poly, VISILIBITY_EPSILON, poly_size);
                     
-                    if (!poly.v.empty() && poly_size >= 3)
+                    // if (!poly.v.empty() && poly_size >= 3)
+                    if (poly_size >= 3)
                     {
                         // std::cout << "create " << i << " polygon_vertices " << (int)poly.v.size() << std::endl;
                         /** @brief For debug purpose **/
@@ -933,74 +944,88 @@ namespace visibility_graph
                             polygon.push_back(
                                 VisiLibity::Point(poly.v[i].x(), poly.v[i].y()));
 
-                        polygon.eliminate_redundant_vertices(VISILIBITY_EPSILON);
+                        // polygon.eliminate_redundant_vertices(VISILIBITY_EPSILON);
                         polygon.enforce_standard_form();
 
+                        if (polygon.n() < 3)
+                            continue;
+                        if (polygon.area() >= 0)
+                            continue;
+
                         /** @brief For debug purpose **/
-                        // printf("polygon_size %d, standard %s, simple %s\n", 
-                        //     polygon.n(), polygon.is_in_standard_form() ? "y" : "n",
-                        //     polygon.is_simple() ? "y" : "n");
+                        printf("polygon_size %d, standard %s, simple %s\n", 
+                            polygon.n(), polygon.is_in_standard_form() ? "y" : "n",
+                            polygon.is_simple(VISILIBITY_EPSILON) ? "y" : "n");
                         
                         // my_environment.add_hole(polygon);
                         // vector_polygon.push_back(polygon);
 
-                        if (polygon.is_simple()) //Sometimes eliminate_redundant_vertices reduces vertices to invalid number
+                        if (polygon.is_simple(VISILIBITY_EPSILON)) // Sometimes eliminate_redundant_vertices reduces vertices to invalid number
                             my_environment.add_hole(polygon);
+                        else
+                            continue;
                     }
+                    else
+                        continue;
 
-                    // // check whether start point is inside this polygon 
-                    // if (visibility_graph::point_in_polygon(poly, rot_pair_2d.first))
-                    // {
-                    //     double distance = FLT_MAX;
-                    //     Eigen::Vector2d closest_point;
-                    //     for (size_t i = 0; i < poly.v.size(); i++)
-                    //     {
-                    //         Eigen::Vector2d cp;
-                    //         double d;
-                    //         size_t j = (i + 1) % (poly.v.size());
-                    //         get_point_to_line(rot_pair_2d.first, 
-                    //             poly.v[i], poly.v[j], d, cp);
-                    //         if (d < distance)
-                    //         {
-                    //             distance = d;
-                    //             closest_point = cp;
-                    //         }
-                    //     }
-                    //     closest_point += (closest_point - poly.c).normalized() * 0.1;
-                    //     path.emplace_back(
-                    //         map.t.inverse() * Eigen::Vector3d(
-                    //         rot_pair_2d.first.x(), rot_pair_2d.first.y(), 0.0));
-                    //     rot_pair_2d.first.x() = closest_point.x();
-                    //     rot_pair_2d.first.y() = closest_point.y();
-                    // }
-                    // // check whether end point is inside this polygon 
-                    // if (visibility_graph::point_in_polygon(poly, rot_pair_2d.second))
-                    // {
-                    //     double distance = FLT_MAX;
-                    //     Eigen::Vector2d closest_point;
-                    //     for (size_t i = 0; i < poly.v.size(); i++)
-                    //     {
-                    //         Eigen::Vector2d cp;
-                    //         double d;
-                    //         size_t j = (i + 1) % (poly.v.size());
-                    //         get_point_to_line(rot_pair_2d.second, 
-                    //             poly.v[i], poly.v[j], d, cp);
-                    //         if (d < distance)
-                    //         {
-                    //             distance = d;
-                    //             closest_point = cp;
-                    //         }
-                    //     }
-                    //     closest_point += (closest_point - poly.c).normalized() * 0.1;
-                    //     rot_pair_2d.second.x() = closest_point.x();
-                    //     rot_pair_2d.second.y() = closest_point.y();
-                    // }
+                    // check whether start point is inside this polygon 
+                    if (visibility_graph::point_in_polygon(poly, rot_pair_2d.first))
+                    {
+                        double distance = FLT_MAX;
+                        Eigen::Vector2d closest_point;
+                        for (size_t i = 0; i < poly.v.size(); i++)
+                        {
+                            Eigen::Vector2d cp;
+                            double d;
+                            size_t j = (i + 1) % (poly.v.size());
+                            get_point_to_line(rot_pair_2d.first, 
+                                poly.v[i], poly.v[j], d, cp);
+                            if (d < distance)
+                            {
+                                distance = d;
+                                closest_point = cp;
+                            }
+                        }
+                        closest_point += (closest_point - poly.c).normalized() * 0.1;
+                        path.emplace_back(
+                            map.t.inverse() * Eigen::Vector3d(
+                            rot_pair_2d.first.x(), rot_pair_2d.first.y(), 0.0));
+                        rot_pair_2d.first.x() = closest_point.x();
+                        rot_pair_2d.first.y() = closest_point.y();
+                    }
+                    // check whether end point is inside this polygon 
+                    if (visibility_graph::point_in_polygon(poly, rot_pair_2d.second))
+                    {
+                        double distance = FLT_MAX;
+                        Eigen::Vector2d closest_point;
+                        for (size_t i = 0; i < poly.v.size(); i++)
+                        {
+                            Eigen::Vector2d cp;
+                            double d;
+                            size_t j = (i + 1) % (poly.v.size());
+                            get_point_to_line(rot_pair_2d.second, 
+                                poly.v[i], poly.v[j], d, cp);
+                            if (d < distance)
+                            {
+                                distance = d;
+                                closest_point = cp;
+                            }
+                        }
+                        closest_point += (closest_point - poly.c).normalized() * 0.1;
+                        rot_pair_2d.second.x() = closest_point.x();
+                        rot_pair_2d.second.y() = closest_point.y();
+                    }
                 }
             }
             else
                 printf("empty environment\n");
 
             assert(my_environment.is_valid(VISILIBITY_EPSILON));
+            // if (my_environment.is_valid(VISILIBITY_EPSILON))
+            // {
+            //     printf("my_environment is not valid\n");
+            //     return;
+            // }
 
             t_p_sc v_g = system_clock::now();
             VisiLibity::Polyline shortest_path_poly;

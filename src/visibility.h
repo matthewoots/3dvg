@@ -136,7 +136,8 @@ namespace visibility_graph
     **/
     void get_polygons_on_plane(
         global_map g_m, Eigen::Vector3d normal, 
-        std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v);
+        std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v,
+        bool sorted);
 
     /**
      * @brief get_affine_transform
@@ -185,7 +186,7 @@ namespace visibility_graph
             ~visibility(){}
 
             /** @brief Main loop **/
-            void calculate_path(bool is_expanded);
+            void calculate_path(bool is_expanded_and_sorted);
 
             /** @brief Get the rotated polygon (obstacles) **/
             std::vector<obstacle> get_rotated_poly();
