@@ -51,12 +51,23 @@ namespace visibility_graph
         Eigen::Vector2d c; // Centroid
     };
 
+    /** @brief Flat_polygon structure
+     * @param v Flattened vertices of the obstacle with accepted point
+     * @param c Flattened centroid of the obstacle
+    **/
+    struct flat_polygon
+    {
+        std::vector<std::pair<Eigen::Vector2d, bool>> v; // Flattened vertices
+        Eigen::Vector2d c; // Centroid
+    };
+
     /** @brief Global map structure
      * @param start_end Start and end point pair (3D)
      * @param obs Obstacles in the map
      * @param inflation Safety margin that is used to expand the map
      * @param t Transform and oriented to start-end vector
      * @param rpy RPY that is recorded for the transform
+     * @param height_limit RPY that is recorded for the transform
     **/
     struct global_map
     {
@@ -65,6 +76,7 @@ namespace visibility_graph
         double inflation; // Safety margin
         Eigen::Affine3d t; // Transform and oriented to start-end vector
         Eigen::Vector3d rpy; // RPY that is recorded for the transform
+        Eigen::Vector2d height_limit; // Height limit of the map
     };
 
     /** 
@@ -73,7 +85,10 @@ namespace visibility_graph
      * @param (Return) Centroid
     **/
     Eigen::Vector2d get_centroid_2d(
-        std::vector<Eigen::Vector2d> vect);
+        std::vector<Eigen::Vector2d> vert);
+
+    Eigen::Vector2d get_centroid_2d(
+        std::vector<std::pair<Eigen::Vector2d, bool>> vert);
 
     /** 
      * @brief get_rotation
@@ -96,6 +111,10 @@ namespace visibility_graph
         std::vector<Eigen::Vector2d> points_in, Eigen::Vector2d centroid,
         std::string dir, std::vector<Eigen::Vector2d> &points_out);
 
+    void graham_scan(
+        std::vector<std::pair<Eigen::Vector2d, bool>> points_in, Eigen::Vector2d centroid,
+        std::string dir, std::vector<std::pair<Eigen::Vector2d, bool>> &points_out);
+
     /** 
      * @brief gift_wrapping algorithm
      * @param points_in points that are passed into the algorithm
@@ -104,10 +123,15 @@ namespace visibility_graph
     std::vector<Eigen::Vector2d> gift_wrapping(
         std::vector<Eigen::Vector2d> points_in);
 
+    std::vector<std::pair<Eigen::Vector2d, bool>> gift_wrapping(
+        std::vector<std::pair<Eigen::Vector2d, bool>> points_in);
+
     // https://stackoverflow.com/a/43896965
     // This uses the ray-casting algorithm to decide whether the point is inside
     // the given polygon. See https://en.wikipedia.org/wiki/Point_in_polygon#Ray_casting_algorithm
     bool point_in_polygon(obstacle &poly, Eigen::Vector2d point);
+
+    bool point_in_polygon(flat_polygon &poly, Eigen::Vector2d point);
 
     // https://stackoverflow.com/a/12132746
     void get_line(Eigen::Vector2d l1, Eigen::Vector2d l2, double &a, double &b, double &c);
@@ -136,7 +160,7 @@ namespace visibility_graph
     **/
     void get_polygons_on_plane(
         global_map g_m, Eigen::Vector3d normal, 
-        std::vector<obstacle> &polygons, std::vector<Eigen::Vector3d> &v,
+        std::vector<flat_polygon> &polygons, std::vector<Eigen::Vector3d> &v,
         bool sorted);
 
     /**
@@ -149,6 +173,14 @@ namespace visibility_graph
     Eigen::Affine3d get_affine_transform(
         Eigen::Vector3d pos, Eigen::Vector3d rpy, 
         std::string frame);
+
+    /** 
+     * @brief get_expansion_of_obs
+     * @param obs Obstacle as input and output 
+     * @param inflation Inflation amount
+    **/
+    void get_expanded_full_obs(
+        obstacle &obs, double inflation);
 
     class visibility
     {
@@ -189,7 +221,7 @@ namespace visibility_graph
             void calculate_path(bool is_expanded_and_sorted);
 
             /** @brief Get the rotated polygon (obstacles) **/
-            std::vector<obstacle> get_rotated_poly();
+            std::vector<flat_polygon> get_rotated_poly();
 
             /** @brief Get the calculated path **/
             std::vector<Eigen::Vector3d> get_path();
@@ -206,7 +238,7 @@ namespace visibility_graph
             std::vector<Eigen::Vector3d> path;
             std::vector<Eigen::Vector3d> debug_point_vertices;
 
-            std::vector<obstacle> rot_polygons;
+            std::vector<flat_polygon> rot_polygons;
             
             std::string frame;
 
@@ -241,6 +273,11 @@ namespace visibility_graph
                 std::pair<Eigen::Vector2d, Eigen::Vector2d> &points_out, 
                 double &nearest_distance, obstacle &o3);
 
+            bool find_nearest_distance_2d_polygons_and_fuse(
+                flat_polygon o1, flat_polygon o2,
+                std::pair<Eigen::Vector2d, Eigen::Vector2d> &points_out, 
+                double &nearest_distance, flat_polygon &o3);
+
             /** 
              * @brief closest_points_between_lines
              * @param a0 First point of line 1
@@ -267,6 +304,10 @@ namespace visibility_graph
             void set_2d_min_max_boundary(
                 std::vector<obstacle> obstacles, std::pair<Eigen::Vector2d, Eigen::Vector2d> start_end, 
                 std::pair<Eigen::Vector2d, Eigen::Vector2d> &boundary);
+            
+            void set_2d_min_max_boundary(
+                std::vector<flat_polygon> obstacles, std::pair<Eigen::Vector2d, Eigen::Vector2d> start_end, 
+                std::pair<Eigen::Vector2d, Eigen::Vector2d> &boundary);
 
             /** 
              * @brief boundary_to_polygon_vertices
@@ -288,7 +329,10 @@ namespace visibility_graph
             void check_and_fuse_obstacles();
 
             void check_simple_obstacle_vertices(
-                obstacle obs, double eps, size_t &valid_vert_size);            
+                obstacle obs, double eps, size_t &valid_vert_size); 
+
+            void check_simple_obstacle_vertices(
+                flat_polygon obs, double eps, size_t &valid_vert_size);           
             
     };
 }
